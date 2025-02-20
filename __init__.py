@@ -20,6 +20,10 @@ def create_app(test_config=None):
     db.init_app(app)
     migrate = Migrate(app, db)
     
+    @app.errorhandler(404)
+    def page_note_found(e):
+        return render_template('404.html'), 404
+    
     def require_login(view):
         @functools.wraps(view)
         def wrapped_view(**kwargs):
@@ -117,6 +121,38 @@ def create_app(test_config=None):
             flash(error, 'error')
             
         return render_template('note_create.html')
+    
+    @app.route('/notes/<note_id>/edit', methods=('GET','POST','PATCH','PUT'))
+    @require_login
+    def note_update(note_id):
+        note = Note.query.filter_by(user_id=g.user.id, id=note_id).first_or_404()
+        
+        if request.method in ['POST','PATCH','PUT']:
+            title = request.form['title']
+            body = request.form['body']
+            error = None
+            
+            if not title:
+                error = 'Title is required.'
+                
+            if error is None:
+                note.title = title
+                note.body = body
+                db.session.add(note)
+                db.session.commit()
+                flash(f"Successfully updated a note {title}",'success')
+                return redirect((url_for('note_index')))
+        
+        return render_template('note_update.html', note=note)
+    
+    @app.route('/notes/<note_id>/delete', methods=('GET','DELETE'))
+    @require_login
+    def note_delete(note_id):
+        note = Note.query.filter_by(user_id=g.user.id, id=note_id).first_or_404()
+        db.session.delete(note)
+        db.session.commit()
+        flash(f"Succesfully delete note: '{note.title}'",'success')
+        return redirect(url_for('note_index'))
     
     return app 
 
